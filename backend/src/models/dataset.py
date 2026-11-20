@@ -8,4 +8,7 @@ class Dataset(Base):
     source: Mapped[str] = mapped_column(String(200), default='manual.json')
     records: Mapped[list] = mapped_column(JSON)
     checksum: Mapped[str] = mapped_column(String(64))
+    contract_version: Mapped[str] = mapped_column(String(10), default='v1')
+    status: Mapped[str] = mapped_column(String(20), default='active')
+    quarantine_reason: Mapped[str] = mapped_column(String(500), default='')
     created_at: Mapped[float] = mapped_column(Double)

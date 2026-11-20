@@ -13,7 +13,10 @@ def listing(db=Depends(get_db),u=Depends(current_user)):
     return [dataset_dict(d) for d in db.scalars(select(Dataset).order_by(Dataset.id.desc()))]
 @router.post('',status_code=201)
 def create(data:DatasetInput,db=Depends(get_db),u=Depends(can_write)):
-    d=datasets.create(db,data); record(db,u.email,'dataset.create',{'id':d.id,'rows':len(d.records)})
+    d=datasets.create(db,data)
+    record(db,u.email,'dataset.create',{'id':d.id,'rows':len(d.records),'contract_version':d.contract_version,'status':d.status})
+    if d.status=='quarantined':
+        record(db,u.email,'dataset.quarantined',{'id':d.id,'reason':d.quarantine_reason})
     db.commit(); return dataset_dict(d)
 @router.get('/{id}')
 def detail(id:int,db=Depends(get_db),u=Depends(current_user)):

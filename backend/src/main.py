@@ -7,12 +7,18 @@ from redis import Redis
 from src.config.database import Session
 from src.config.settings import REDIS_URL
 from src.middlewares.requests import RequestControl
-from src.routes import auth, datasets, jobs, reports
+from src.routes import auth, datasets, jobs, reports, contracts
 from src.controllers import catalog
 from migrations.initial import migrate
 @asynccontextmanager
 async def lifespan(app):
     migrate()
+    try:
+        # 契约升级复核：幂等，重试不会重复写入或放出半批。
+        from src.services.contracts import revalidate_datasets
+        with Session() as db:
+            revalidate_datasets(db); db.commit()
+    except Exception:logging.exception('Contract revalidation skipped; backend remains available')
     if os.getenv('SEED_DEMO','true').lower()=='true':
         try:
             from scripts.seed_demo import seed
@@ -30,4 +36,4 @@ def health():
     with Session() as db:db.execute(text('SELECT 1'))
     r=Redis.from_url(REDIS_URL,socket_timeout=2);r.ping();r.close()
     return {'status':'healthy'}
-for router in [auth.router,datasets.router,jobs.router,reports.router,catalog.router]:app.include_router(router)
+for router in [auth.router,datasets.router,jobs.router,reports.router,contracts.router,catalog.router]:app.include_router(router)

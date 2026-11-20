@@ -18,3 +18,4 @@ class Delivery(Base):
     checksum: Mapped[str] = mapped_column(String(64))
     filename: Mapped[str] = mapped_column(String(160))
     destination: Mapped[str] = mapped_column(String(120))
+    contract_version: Mapped[str] = mapped_column(String(10), default='')

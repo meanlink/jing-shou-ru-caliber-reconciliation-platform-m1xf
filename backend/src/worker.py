@@ -16,7 +16,8 @@ def execute(job_id):
         j.status='running'; db.commit()
         try:
             d=db.get(Dataset,j.dataset_id)
-            result=analyze(d.records,j.params)
+            if d.status!='active': raise ValueError(f'数据批次已被隔离，分析中止：{d.quarantine_reason}')
+            result=analyze(d.records,j.params,j.contract_version or d.contract_version)
             json.dumps(result,allow_nan=False)
             j.result=result;j.status='completed';j.finished_at=time.time()
             record(db,'worker','job.completed',{'id':j.id})

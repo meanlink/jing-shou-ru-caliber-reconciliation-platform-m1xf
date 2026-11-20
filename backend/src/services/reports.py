@@ -2,6 +2,7 @@ import time, os, csv, io, hashlib, json
 from fastapi import HTTPException
 from src.models import Job, Report, Delivery
 from src.config.settings import ARTIFACT_DIR
+from src.services.contracts import contract
 def create(db, data):
     j=db.get(Job,data.job_id)
     if not j or j.status!='completed' or not j.approved:
@@ -12,8 +13,12 @@ def create(db, data):
 def deliver(db, report):
     j=db.get(Job,report.job_id)
     if not j or not j.approved: return
+    version=j.contract_version or 'v1'
+    label=contract(version)['label']
     out=io.StringIO()
     out.write('\ufeff')
+    # 导出沿用分析固定的契约版本，随文件留痕。
+    out.write(f'# 源账契约版本: {version} · {label}\n')
     table=j.result.get('table',{})
     cols=table.get('columns',[])
     writer=csv.writer(out)
@@ -24,11 +29,11 @@ def deliver(db, report):
     writer.writerow([safe(c['label']) for c in cols])
     for row in table.get('rows',[]): writer.writerow([safe(row.get(c['key'],'')) for c in cols])
     data=out.getvalue().encode('utf-8')
-    delivery=Delivery(report_id=report.id, created_at=time.time(), checksum=hashlib.sha256(data).hexdigest(), filename='', destination=report.destination)
+    delivery=Delivery(report_id=report.id, created_at=time.time(), checksum=hashlib.sha256(data).hexdigest(), filename='', destination=report.destination, contract_version=version)
     db.add(delivery); db.flush()
     delivery.filename=f'report-{report.id}-delivery-{delivery.id}.csv'
     os.makedirs(ARTIFACT_DIR,exist_ok=True)
     with open(os.path.join(ARTIFACT_DIR,delivery.filename),'wb') as f:f.write(data)
-    with open(os.path.join(ARTIFACT_DIR,delivery.filename+'.json'),'w') as f: json.dump({'job':j.name,'params':j.params,'result':j.result,'checksum':delivery.checksum},f,ensure_ascii=False,allow_nan=False)
+    with open(os.path.join(ARTIFACT_DIR,delivery.filename+'.json'),'w') as f: json.dump({'job':j.name,'params':j.params,'contract_version':version,'contract_label':label,'result':j.result,'checksum':delivery.checksum},f,ensure_ascii=False,allow_nan=False)
     report.next_run=time.time()+report.interval_seconds
     return delivery
